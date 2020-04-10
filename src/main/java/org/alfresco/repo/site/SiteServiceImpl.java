@@ -36,6 +36,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -43,6 +44,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.alfresco.error.AlfrescoRuntimeException;
+import org.alfresco.repo.node.archive.NodeArchiveService;
 import org.alfresco.sync.events.types.Event;
 import org.alfresco.sync.events.types.SiteManagementEvent;
 import org.alfresco.model.ContentModel;
@@ -1476,6 +1478,24 @@ public class SiteServiceImpl extends AbstractLifecycleBean implements SiteServic
                     {
                         siteNodeRefCache.put(shortName, siteNode);
                     }
+                    else {
+                        NodeRef archiveParentNodeRef = directNodeService
+                            .getStoreArchiveNode(siteRoot.getStoreRef());
+                        List<ChildAssociationRef> childAssociationRefs = directNodeService
+                            .getChildAssocs(archiveParentNodeRef, ContentModel.ASSOC_CHILDREN,
+                                NodeArchiveService.QNAME_ARCHIVED_ITEM);
+
+                        Optional<NodeRef> archivedShortNameSite = childAssociationRefs.stream()
+                            .map(childAssociationRef -> childAssociationRef.getChildRef())
+                            .filter(site -> ((String) directNodeService.getProperty(site, ContentModel.PROP_NAME))
+                                    .equalsIgnoreCase(shortName))
+                            .findFirst();
+
+                        if (archivedShortNameSite.isPresent())
+                        {
+                            siteNode = archivedShortNameSite.get();
+                        }
+                    }
                     return siteNode;
                 }
             }, AuthenticationUtil.getSystemUserName());
@@ -1502,7 +1522,7 @@ public class SiteServiceImpl extends AbstractLifecycleBean implements SiteServic
     {
         return (getSiteNodeRef(shortName, false) != null);
     }
-    
+
     /**
      * @see org.alfresco.service.cmr.site.SiteService#updateSite(org.alfresco.service.cmr.site.SiteInfo)
      */
