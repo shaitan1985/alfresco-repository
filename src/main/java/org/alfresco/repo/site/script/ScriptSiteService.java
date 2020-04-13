@@ -148,7 +148,18 @@ public class ScriptSiteService extends BaseScopableProcessorExtension
     {
         return this.siteService.hasSite(shortName);
     }
-    
+
+    /**
+     * Archived site existence check.
+     *
+     * @param shortName     site short name
+     * @return true if the archived site exists, false otherwise.
+     */
+    public boolean hasArchivedSite(String shortName)
+    {
+        return this.siteService.hasArchivedSite(shortName);
+    }
+
     /**
      * This method checks if the currently authenticated user has permission to create sites.
      * 

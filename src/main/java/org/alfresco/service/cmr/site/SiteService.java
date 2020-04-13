@@ -289,7 +289,16 @@ public interface SiteService
      */
     @NotAuditable
     boolean hasSite(String shortName);
-    
+
+    /**
+     * Returns true if the archived site exists.
+     *
+     * @param shortName     the site short name
+     * @return true if the archived site exists, false otherwise
+     */
+    @NotAuditable
+    boolean hasArchivedSite(String shortName);
+
     /**
      * Update the site information.
      * <P>

@@ -514,8 +514,8 @@ public class SiteServiceImpl extends AbstractLifecycleBean implements SiteServic
         final String shortName = passedShortName.replaceAll(" ", "");
         
         // Check to see if we already have a site of this name
-        NodeRef existingSite = getSiteNodeRef(shortName, false);
-        if (existingSite != null || authorityService.authorityExists(getSiteGroup(shortName, true)))
+        if (hasSite(shortName) || authorityService.authorityExists(getSiteGroup(shortName, true))
+            || hasArchivedSite(shortName))
         {
             // Throw an exception since we have a duplicate site name
             throw new SiteServiceException(MSG_UNABLE_TO_CREATE, new Object[]{shortName});
@@ -1466,38 +1466,16 @@ public class SiteServiceImpl extends AbstractLifecycleBean implements SiteServic
             // not in cache - find and store
             final NodeRef siteRoot = getSiteParent(shortName);
             
-            siteNodeRef = AuthenticationUtil.runAs(new AuthenticationUtil.RunAsWork<NodeRef>()
-            {
-                public NodeRef doWork() throws Exception
+            siteNodeRef = AuthenticationUtil.runAs(() -> {
+                // the site "short name" directly maps to the cm:name property
+                NodeRef siteNode = directNodeService.getChildByName(siteRoot, ContentModel.ASSOC_CONTAINS, shortName);
+
+                // cache the result if found - null results will be required to ensure new sites are found later
+                if (siteNode != null)
                 {
-                    // the site "short name" directly maps to the cm:name property
-                    NodeRef siteNode = directNodeService.getChildByName(siteRoot, ContentModel.ASSOC_CONTAINS, shortName);
-                    
-                    // cache the result if found - null results will be required to ensure new sites are found later
-                    if (siteNode != null)
-                    {
-                        siteNodeRefCache.put(shortName, siteNode);
-                    }
-                    else {
-                        NodeRef archiveParentNodeRef = directNodeService
-                            .getStoreArchiveNode(siteRoot.getStoreRef());
-                        List<ChildAssociationRef> childAssociationRefs = directNodeService
-                            .getChildAssocs(archiveParentNodeRef, ContentModel.ASSOC_CHILDREN,
-                                NodeArchiveService.QNAME_ARCHIVED_ITEM);
-
-                        Optional<NodeRef> archivedShortNameSite = childAssociationRefs.stream()
-                            .map(childAssociationRef -> childAssociationRef.getChildRef())
-                            .filter(site -> ((String) directNodeService.getProperty(site, ContentModel.PROP_NAME))
-                                    .equalsIgnoreCase(shortName))
-                            .findFirst();
-
-                        if (archivedShortNameSite.isPresent())
-                        {
-                            siteNode = archivedShortNameSite.get();
-                        }
-                    }
-                    return siteNode;
+                    siteNodeRefCache.put(shortName, siteNode);
                 }
+                return siteNode;
             }, AuthenticationUtil.getSystemUserName());
         }
         if (enforcePermissions)
@@ -1513,7 +1491,29 @@ public class SiteServiceImpl extends AbstractLifecycleBean implements SiteServic
             return siteNodeRef;
         }
     }
-    
+
+    private NodeRef getArchivedSiteNodeRef(String shortName)
+    {
+        final NodeRef siteRoot = getSiteParent(shortName);
+
+        return AuthenticationUtil.runAs(() -> {
+            NodeRef storeArchiveNode = directNodeService
+                .getStoreArchiveNode(siteRoot.getStoreRef());
+
+            List<ChildAssociationRef> childAssociationRefs = directNodeService
+                .getChildAssocs(storeArchiveNode, ContentModel.ASSOC_CHILDREN,
+                    NodeArchiveService.QNAME_ARCHIVED_ITEM);
+
+            Optional<NodeRef> archivedShortNameSite = childAssociationRefs.stream()
+                .map(childAssociationRef -> childAssociationRef.getChildRef())
+                .filter(site -> ((String) directNodeService.getProperty(site, ContentModel.PROP_NAME))
+                    .equalsIgnoreCase(shortName))
+                .findFirst();
+
+            return archivedShortNameSite.isPresent() ? archivedShortNameSite.get() : null;
+        }, AuthenticationUtil.getSystemUserName());
+    }
+
     /**
      * @see org.alfresco.service.cmr.site.SiteService#hasSite(java.lang.String)
      */
@@ -1521,6 +1521,15 @@ public class SiteServiceImpl extends AbstractLifecycleBean implements SiteServic
     public boolean hasSite(String shortName)
     {
         return (getSiteNodeRef(shortName, false) != null);
+    }
+
+    /**
+     * @see org.alfresco.service.cmr.site.SiteService#hasArchivedSite(java.lang.String)
+     */
+    @Override
+    public boolean hasArchivedSite(String shortName)
+    {
+        return (getArchivedSiteNodeRef(shortName) != null);
     }
 
     /**
