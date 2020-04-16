@@ -321,6 +321,18 @@ public class SiteServiceImplTest extends BaseAlfrescoSpringTest
             // Expected
         }
 
+        // Test for duplicate site error when duplicate site name is in trashcan
+        this.siteService.deleteSite(mySiteTest);
+        try
+        {
+            this.siteService.createSite(TEST_SITE_PRESET, mySiteTest, TEST_TITLE, TEST_DESCRIPTION, SiteVisibility.PUBLIC);
+            fail("Shouldn't allow duplicate site short names.");
+        }
+        catch (AlfrescoRuntimeException exception)
+        {
+            // Expected
+        }
+
         try
         {
             //Create a site with an invalid site type
@@ -366,7 +378,41 @@ public class SiteServiceImplTest extends BaseAlfrescoSpringTest
         };
         transactionService.getRetryingTransactionHelper().doInTransaction(work);
     }
-    
+
+    @Test
+    public void testHasArchivedSite()
+    {
+        RetryingTransactionCallback<Object> work = () -> {
+            authenticationComponent.setCurrentUser(USER_ONE);
+            String publicsite1 = "publicsite1" + UUID.randomUUID();
+            String privatesite1 = "privatesite1" + UUID.randomUUID();
+            // Create a Public site
+            createSite(publicsite1, "doclib", SiteVisibility.PUBLIC);
+            // Create a Private site
+            createSite(privatesite1, "doclib", SiteVisibility.PRIVATE);
+
+            // ensure USER_TWO has correct visibility - can "get" public site but not a private one,
+            // can "has" exist check public site but not a private one
+            authenticationComponent.setCurrentUser(USER_TWO);
+            assertTrue(siteService.getSite(publicsite1) != null);
+            assertTrue(siteService.getSite(privatesite1) == null); // should not be visible to get()
+
+            // move tot trashcan
+            authenticationComponent.setSystemUserAsCurrentUser();
+            siteService.deleteSite(publicsite1);
+            siteService.deleteSite(privatesite1);
+
+            authenticationComponent.setCurrentUser(USER_TWO);
+            assertTrue(siteService.hasArchivedSite(publicsite1));
+            assertTrue(siteService.hasArchivedSite(privatesite1)); // should be visible to has() exist check
+
+            authenticationComponent.setSystemUserAsCurrentUser();
+
+            return null;
+        };
+        transactionService.getRetryingTransactionHelper().doInTransaction(work);
+    }
+
     /**
      * Test for duplicate site exception where the duplicate is a private site.
      * 
@@ -402,6 +448,40 @@ public class SiteServiceImplTest extends BaseAlfrescoSpringTest
                 
                 return null;
             }
+        };
+        transactionService.getRetryingTransactionHelper().doInTransaction(work);
+    }
+
+    /**
+     * Test for duplicate site exception where the duplicate is a deleted (still in trashcan) private site.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testCreateSiteWhereDuplicateInTrashcan()
+    {
+        RetryingTransactionCallback<Object> work = () -> {
+            // Test for duplicate site error with a private site
+            String siteShortName = "wibble" + UUID.randomUUID();
+            siteService.createSite(TEST_SITE_PRESET, siteShortName, TEST_TITLE, TEST_DESCRIPTION, SiteVisibility.PRIVATE);
+            // Delete site (move to trashcan)
+            siteService.deleteSite(siteShortName);
+
+            authenticationComponent.setCurrentUser(USER_THREE);
+
+            try
+            {
+                siteService.createSite(TEST_SITE_PRESET, siteShortName, TEST_TITLE, TEST_DESCRIPTION, SiteVisibility.PRIVATE);
+                fail("Shouldn't allow duplicate site short names.");
+            }
+            catch (AlfrescoRuntimeException exception)
+            {
+                // Expected
+            }
+
+            authenticationComponent.setSystemUserAsCurrentUser();
+
+            return null;
         };
         transactionService.getRetryingTransactionHelper().doInTransaction(work);
     }
