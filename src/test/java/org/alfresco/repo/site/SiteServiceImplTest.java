@@ -391,8 +391,7 @@ public class SiteServiceImplTest extends BaseAlfrescoSpringTest
             // Create a Private site
             createSite(privatesite1, "doclib", SiteVisibility.PRIVATE);
 
-            // ensure USER_TWO has correct visibility - can "get" public site but not a private one,
-            // can "has" exist check public site but not a private one
+            // ensure USER_TWO has correct visibility - can "get" public site but not a private one, can "has" exist check both
             authenticationComponent.setCurrentUser(USER_TWO);
             assertTrue(siteService.getSite(publicsite1) != null);
             assertTrue(siteService.getSite(privatesite1) == null); // should not be visible to get()
@@ -454,8 +453,6 @@ public class SiteServiceImplTest extends BaseAlfrescoSpringTest
 
     /**
      * Test for duplicate site exception where the duplicate is a deleted (still in trashcan) private site.
-     *
-     * @throws Exception
      */
     @Test
     public void testCreateSiteWhereDuplicateInTrashcan()
